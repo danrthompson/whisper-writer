@@ -1,5 +1,6 @@
 {
 	"use_api": true,
+	"wait_for_stop_function": true,
 	"api_options": {
 		"model": "whisper-1",
 		"language": "en",

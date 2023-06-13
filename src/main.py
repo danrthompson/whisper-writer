@@ -7,20 +7,76 @@ import pyautogui
 from transcription import record_and_transcribe
 from status_window import StatusWindow
 
+from typing import Optional
+
 
 class ResultThread(threading.Thread):
     def __init__(self, *args, **kwargs):
         super(ResultThread, self).__init__(*args, **kwargs)
         self.result = None
         self.stop_transcription = False
+        self.cancel_transcription = False
 
     def run(self):
         self.result = self._target(
-            *self._args, cancel_flag=lambda: self.stop_transcription, **self._kwargs
+            *self._args,
+            cancel_flag=lambda: self.cancel_transcription,
+            stop_flag=lambda: self.stop_transcription,
+            **self._kwargs
         )
 
     def stop(self):
         self.stop_transcription = True
+
+    def cancel(self):
+        self.cancel_transcription = True
+
+
+class WhisperApp:
+    def __init__(self):
+        self.config = load_config_with_defaults()
+        self.status_queue = queue.Queue()
+        self.status_window = None
+        self.recording_thread: Optional[ResultThread] = None
+
+    def run(self):
+        self.clear_status_queue()
+
+        self.status_queue.put(("recording", "Recording..."))
+        self.recording_thread = ResultThread(
+            target=record_and_transcribe,
+            args=(self.status_queue,),
+            kwargs={"config": self.config},
+        )
+        self.recording_thread.start()
+
+    def stop_or_cancel(self, stop):
+        if not self.recording_thread:
+            print("No recording to stop or cancel")
+            return
+        if stop:
+            self.recording_thread.stop()
+        else:
+            self.recording_thread.cancel()
+
+        self.recording_thread.join()
+
+        transcribed_text = self.recording_thread.result
+
+        print(transcribed_text)
+
+    def stop(self):
+        self.stop_or_cancel(True)
+
+    def cancel(self):
+        self.stop_or_cancel(False)
+
+    def clear_status_queue(self):
+        while not self.status_queue.empty():
+            try:
+                self.status_queue.get_nowait()
+            except queue.Empty:
+                break
 
 
 def load_config_with_defaults():
@@ -50,87 +106,10 @@ def load_config_with_defaults():
         "print_to_terminal": True,
     }
 
-    config_path = os.path.join("src", "config.json")
+    config_path = os.path.join(os.path.dirname(__file__), "config.json")
     if os.path.isfile(config_path):
         with open(config_path, "r") as config_file:
             user_config = json.load(config_file)
-            for key, value in user_config.items():
-                if key in default_config and value is not None:
-                    default_config[key] = value
+            default_config.update(user_config)
 
     return default_config
-
-
-def clear_status_queue():
-    while not status_queue.empty():
-        try:
-            status_queue.get_nowait()
-        except queue.Empty:
-            break
-
-
-def on_shortcut():
-    global status_queue
-    clear_status_queue()
-
-    status_queue.put(("recording", "Recording..."))
-    recording_thread = ResultThread(
-        target=record_and_transcribe, args=(status_queue,), kwargs={"config": config}
-    )
-    status_window = StatusWindow(status_queue)
-    status_window.recording_thread = recording_thread
-    status_window.start()
-    recording_thread.start()
-
-    recording_thread.join()
-
-    if status_window.is_alive():
-        status_queue.put(("cancel", ""))
-
-    transcribed_text = recording_thread.result
-
-    if transcribed_text:
-        pyautogui.write(transcribed_text, interval=config["writing_key_press_delay"])
-
-
-def format_keystrokes(key_string):
-    return "+".join(word.capitalize() for word in key_string.split("+"))
-
-
-# # Main script
-
-config = load_config_with_defaults()
-method = "OpenAI's API" if config["use_api"] else "a local model"
-status_queue = queue.Queue()
-
-
-def run():
-    global status_queue
-    clear_status_queue()
-
-    status_queue.put(("recording", "Recording..."))
-    recording_thread = ResultThread(
-        target=record_and_transcribe, args=(status_queue,), kwargs={"config": config}
-    )
-    recording_thread.start()
-
-    recording_thread.join()
-
-    transcribed_text = recording_thread.result
-
-    print(transcribed_text)
-
-
-# keyboard.add_hotkey(config["activation_key"], on_shortcut)
-
-# print(
-#     f'Script activated. Whisper is set to run using {method}. To change this, modify the "use_api" value in the src\\config.json file.'
-# )
-# print(
-#     f'Press {format_keystrokes(config["activation_key"])} to start recording and transcribing. Press Ctrl+C on the terminal window to quit.'
-# )
-# try:
-#     keyboard.wait()  # Keep the script running to listen for the shortcut
-# except KeyboardInterrupt:
-#     print("\nExiting the script...")
-#     os.system("exit")
