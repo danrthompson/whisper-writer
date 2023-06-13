@@ -4,17 +4,8 @@
 	"api_options": {
 		"model": "whisper-1",
 		"language": "en",
-		"temperature": 0.0,
+		"temperature": 0.3,
 		"initial_prompt": "The speaker is a programmer and uses a lot of jargon"
-	},
-	"local_model_options": {
-		"model": "base",
-		"device": null,
-		"language": null,
-		"temperature": 0.0,
-		"initial_prompt": "The speaker is a programmer and uses a lot of jargon",
-		"condition_on_previous_text": true,
-		"verbose": false
 	},
 	"activation_key": "alt+W",
 	"silence_duration": 900,

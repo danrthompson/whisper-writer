@@ -2,10 +2,8 @@ import json
 import os
 import queue
 import threading
-import keyboard
-import pyautogui
 from transcription import record_and_transcribe
-from status_window import StatusWindow
+import pyperclip
 
 from typing import Optional
 
@@ -64,6 +62,7 @@ class WhisperApp:
         transcribed_text = self.recording_thread.result
 
         print(transcribed_text)
+        pyperclip.copy(transcribed_text)
 
     def stop(self):
         self.stop_or_cancel(True)
