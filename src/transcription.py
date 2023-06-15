@@ -8,7 +8,7 @@ import wave
 import webrtcvad
 from dotenv import load_dotenv
 
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 if load_dotenv():
     openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -26,18 +26,18 @@ def process_transcription(transcription: str, config=None) -> str:
     return transcription
 
 
-"""
-Record audio from the microphone and transcribe it using the OpenAI API.
-Recording stops when the user stops speaking.
-"""
-
-
 def record_and_transcribe(
     status_queue,
     cancel_flag: Callable[[], bool],
     stop_flag: Callable[[], bool],
     config=None,
+    prompt_override: Optional[str] = None,
 ) -> str:
+    """
+    Record audio from the microphone and transcribe it using the OpenAI API.
+    Recording stops when the user stops speaking.
+    """
+
     if not config:
         config = {}
     sample_rate = 16000
@@ -107,12 +107,13 @@ def record_and_transcribe(
         # If configured, transcribe the temporary audio file using the OpenAI API
         # if config["use_api"]:
         api_options = config["api_options"]
+        prompt = prompt_override or api_options["initial_prompt"]
         with open(temp_audio_file.name, "rb") as audio_file:
             response: Any = openai.Audio.transcribe(
                 model=api_options["model"],
                 file=audio_file,
                 language=api_options["language"],
-                prompt=api_options["initial_prompt"],
+                prompt=prompt,
                 temperature=api_options["temperature"],
             )
 

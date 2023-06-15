@@ -31,8 +31,22 @@ while True:
         elif command == "cancel":
             app.cancel()
             set_results("done")
-        elif command == "update":
+        elif command == "update configs":
             app.update_configs()
             set_results("done")
+        elif command.startswith("update prompt"):
+            split_command = command.split("|", 1)
+            if len(split_command) == 1:
+                print("ERROR: No valid prompt name provided. Taking no action")
+                continue
+            prompt_filename = split_command[1].strip()
+            if prompt_filename.startswith("custom="):
+                custom_prompt = prompt_filename.replace("custom=", "")
+                app.update_prompt(custom_prompt)
+            else:
+                app.update_prompt_from_filename(prompt_filename)
+            set_results("done")
+        else:
+            print("Unknown command. Taking no action")
 
     time.sleep(0.5)  # prevent busy-waiting
