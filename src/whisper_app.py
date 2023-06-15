@@ -1,4 +1,33 @@
-import logging
+import json
+import os
+from queue import Empty, Queue
+import threading
+from transcription import record_and_transcribe
+import pyperclip
+
+from typing import Optional, Tuple
+
+
+class ResultThread(threading.Thread):
+    def __init__(self, *args, **kwargs):
+        super(ResultThread, self).__init__(*args, **kwargs)
+        self.result = None
+        self.stop_transcription = False
+        self.cancel_transcription = False
+
+    def run(self):
+        self.result = self._target(
+            *self._args,
+            cancel_flag=lambda: self.cancel_transcription,
+            stop_flag=lambda: self.stop_transcription,
+            **self._kwargs,
+        )
+
+    def stop(self):
+        self.stop_transcription = True
+
+    def cancel(self):
+        self.cancel_transcription = True
 
 
 class WhisperApp:
@@ -8,20 +37,15 @@ class WhisperApp:
         self.status_window = None
         self.recording_thread: Optional[ResultThread] = None
 
-        # Set up logging
-        logging.basicConfig(level=logging.INFO)
-
     def run(self, prompt_override: Optional[str] = None):
         self.clear_status_queue()
 
         kwargs = {"config": self.config}
         if prompt_override:
             kwargs["prompt_override"] = prompt_override
-            logging.info(f"Using prompt override: {prompt_override}")
+            print(f"Using prompt override: {prompt_override}")
         else:
-            logging.info(
-                f"Using prompt: {self.config['api_options']['initial_prompt']}"
-            )
+            print(f"Using prompt: {self.config['api_options']['initial_prompt']}")
 
         self.status_queue.put(("recording", "Recording..."))
         self.recording_thread = ResultThread(
@@ -33,7 +57,7 @@ class WhisperApp:
 
     def stop_or_cancel(self, stop):
         if not self.recording_thread:
-            logging.warning("No recording to stop or cancel")
+            print("No recording to stop or cancel")
             return
         if stop:
             self.recording_thread.stop()
@@ -51,7 +75,7 @@ class WhisperApp:
 
     def cancel(self):
         self.stop_or_cancel(False)
-        logging.info("Cancelled")
+        print("Cancelled")
 
     def clear_status_queue(self):
         while not self.status_queue.empty():
@@ -62,11 +86,11 @@ class WhisperApp:
 
     def update_configs(self):
         self.config = load_config_with_defaults()
-        logging.info("Updated configs")
+        print("Updated configs")
 
     def update_prompt(self, new_prompt):
         self.config["api_options"]["initial_prompt"] = new_prompt
-        logging.info(f"Updated prompt to: {new_prompt}")
+        print(f"Updated prompt to: {new_prompt}")
 
     def update_prompt_from_filename(self, prompt_filename):
         self.update_configs()
@@ -78,7 +102,7 @@ class WhisperApp:
         if new_prompt:
             self.update_prompt(new_prompt)
         else:
-            logging.warning(
+            print(
                 f"Prompt file is empty. Did not update. Current prompt: {self.config['api_options']['initial_prompt']}"
             )
 
