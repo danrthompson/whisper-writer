@@ -5,35 +5,22 @@ import threading
 from transcription import record_and_transcribe
 import pyperclip
 
-from typing import Callable, Optional, Tuple
-
-import threading
+from typing import Optional, Tuple
 
 
 class ResultThread(threading.Thread):
     def __init__(self, *args, **kwargs):
+        super(ResultThread, self).__init__(*args, **kwargs)
         self.result = None
         self.stop_transcription = False
         self.cancel_transcription = False
 
-        self.target_function = kwargs["target"]
-
-        if args and isinstance(args[0], Queue):
-            self.queue: Queue = args[0]
-        else:
-            raise ValueError("We need a status queue")
-
-        self.target_args = args
-        self.target_kwargs = kwargs
-
-        super(ResultThread, self).__init__(*args, **kwargs)
-
     def run(self):
-        self.result = self.target_function(
-            self.queue,
+        self.result = self._target(
+            *self._args,
             cancel_flag=lambda: self.cancel_transcription,
             stop_flag=lambda: self.stop_transcription,
-            **self.target_kwargs
+            **self._kwargs
         )
 
     def stop(self):
