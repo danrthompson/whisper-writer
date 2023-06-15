@@ -1,26 +1,39 @@
 import json
 import os
-import queue
+from queue import Empty, Queue
 import threading
 from transcription import record_and_transcribe
 import pyperclip
 
-from typing import Optional
+from typing import Callable, Optional, Tuple
+
+import threading
 
 
 class ResultThread(threading.Thread):
     def __init__(self, *args, **kwargs):
-        super(ResultThread, self).__init__(*args, **kwargs)
         self.result = None
         self.stop_transcription = False
         self.cancel_transcription = False
 
+        self.target_function = kwargs["target"]
+
+        if args and isinstance(args[0], Queue):
+            self.queue: Queue = args[0]
+        else:
+            raise ValueError("We need a status queue")
+
+        self.target_args = args
+        self.target_kwargs = kwargs
+
+        super(ResultThread, self).__init__(*args, **kwargs)
+
     def run(self):
-        self.result = self._target(
-            *self._args,
+        self.result = self.target_function(
+            self.queue,
             cancel_flag=lambda: self.cancel_transcription,
             stop_flag=lambda: self.stop_transcription,
-            **self._kwargs
+            **self.target_kwargs
         )
 
     def stop(self):
@@ -33,7 +46,7 @@ class ResultThread(threading.Thread):
 class WhisperApp:
     def __init__(self):
         self.config = load_config_with_defaults()
-        self.status_queue = queue.Queue()
+        self.status_queue: Queue[Tuple[str, str]] = Queue()
         self.status_window = None
         self.recording_thread: Optional[ResultThread] = None
 
@@ -74,7 +87,7 @@ class WhisperApp:
         while not self.status_queue.empty():
             try:
                 self.status_queue.get_nowait()
-            except queue.Empty:
+            except Empty:
                 break
 
 
@@ -109,6 +122,6 @@ def load_config_with_defaults():
     if os.path.isfile(config_path):
         with open(config_path, "r") as config_file:
             user_config = json.load(config_file)
-            default_config.update(user_config)
+            default_config |= user_config
 
     return default_config

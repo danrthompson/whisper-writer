@@ -8,13 +8,13 @@ import wave
 import webrtcvad
 from dotenv import load_dotenv
 
-from typing import Any
+from typing import Any, Callable
 
 if load_dotenv():
     openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
-def process_transcription(transcription, config=None):
+def process_transcription(transcription: str, config=None) -> str:
     if config:
         if config["remove_trailing_period"] and transcription.endswith("."):
             transcription = transcription[:-1]
@@ -32,7 +32,12 @@ Recording stops when the user stops speaking.
 """
 
 
-def record_and_transcribe(status_queue, cancel_flag, stop_flag, config=None):
+def record_and_transcribe(
+    status_queue,
+    cancel_flag: Callable[[], bool],
+    stop_flag: Callable[[], bool],
+    config=None,
+) -> str:
     if not config:
         config = {}
     sample_rate = 16000
@@ -118,7 +123,7 @@ def record_and_transcribe(status_queue, cancel_flag, stop_flag, config=None):
             status_queue.put(("cancel", ""))
             return ""
 
-        result = response.get("text")
+        result: str = response.get("text", "")
         if config["print_to_terminal"]:
             print("Transcription:", result)
 
@@ -129,3 +134,4 @@ def record_and_transcribe(status_queue, cancel_flag, stop_flag, config=None):
     except Exception:
         traceback.print_exc()
         status_queue.put(("error", "Error"))
+        return ""
