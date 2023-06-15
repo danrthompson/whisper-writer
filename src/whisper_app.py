@@ -70,6 +70,8 @@ class WhisperApp:
 
         pyperclip.copy(transcribed_text)
 
+        return None
+
     def stop(self):
         self.stop_or_cancel(True)
 
