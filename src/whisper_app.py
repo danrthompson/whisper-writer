@@ -20,7 +20,7 @@ class ResultThread(threading.Thread):
             *self._args,
             cancel_flag=lambda: self.cancel_transcription,
             stop_flag=lambda: self.stop_transcription,
-            **self._kwargs
+            **self._kwargs,
         )
 
     def stop(self):
@@ -77,32 +77,41 @@ class WhisperApp:
             except Empty:
                 break
 
+    def update_config(self):
+        self.config = load_config_with_defaults()
+        print("Updated configs")
+
+    def update_prompt(self, prompt_filename):
+        self.update_config()
+        with open(
+            os.path.join(os.path.dirname(__file__), f"prompts/{prompt_filename}.txt"),
+            "r",
+        ) as prompt_file:
+            new_prompt: str = prompt_file.read()
+        if new_prompt:
+            self.config["api_options"]["initial_prompt"] = new_prompt
+            print(f"Updated prompt to: {new_prompt}")
+        else:
+            print(
+                f"Prompt file is empty. Did not update. Current prompt: {self.config['api_options']['initial_prompt']}"
+            )
+
 
 def load_config_with_defaults():
     default_config = {
         "use_api": True,
+        "wait_for_stop_function": True,
         "api_options": {
             "model": "whisper-1",
             "language": None,
             "temperature": 0.0,
             "initial_prompt": None,
         },
-        "local_model_options": {
-            "model": "base",
-            "device": None,
-            "language": None,
-            "temperature": 0.0,
-            "initial_prompt": None,
-            "condition_on_previous_text": True,
-            "verbose": False,
-        },
-        "activation_key": "ctrl+alt+space",
         "silence_duration": 900,
-        "writing_key_press_delay": 0.008,
         "remove_trailing_period": True,
         "add_trailing_space": False,
         "remove_capitalization": False,
-        "print_to_terminal": True,
+        "print_to_terminal": False,
     }
 
     config_path = os.path.join(os.path.dirname(__file__), "config.json")

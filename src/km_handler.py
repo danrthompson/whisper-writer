@@ -31,5 +31,8 @@ while True:
         elif command == "cancel":
             app.cancel()
             set_results("done")
+        elif command == "update":
+            app.update_configs()
+            set_results("done")
 
     time.sleep(0.5)  # prevent busy-waiting
