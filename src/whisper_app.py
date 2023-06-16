@@ -1,11 +1,13 @@
 import json
 import os
-from queue import Empty, Queue
 import threading
-from transcription import record_and_transcribe
+from datetime import datetime
+from queue import Empty, Queue
+from typing import Optional, Tuple
+
 import pyperclip
 
-from typing import Optional, Tuple
+from transcription import record_and_transcribe
 
 
 class ResultThread(threading.Thread):
@@ -36,6 +38,10 @@ class WhisperApp:
         self.status_queue: Queue[Tuple[str, str]] = Queue()
         self.status_window = None
         self.recording_thread: Optional[ResultThread] = None
+
+        print(
+            f"Initialized WhisperApp. Time: {datetime.now().strftime('%H:%M')}. Config: {self.config}"
+        )
 
     def run(self, prompt_override: Optional[str] = None):
         self.clear_status_queue()

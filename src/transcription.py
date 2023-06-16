@@ -1,14 +1,14 @@
+import os
+import tempfile
 import traceback
+import wave
+from typing import Any, Callable, Optional
+
 import numpy as np
 import openai
-import os
 import sounddevice as sd
-import tempfile
-import wave
 import webrtcvad
 from dotenv import load_dotenv
-
-from typing import Any, Callable, Optional
 
 if load_dotenv():
     openai.api_key = os.getenv("OPENAI_API_KEY")

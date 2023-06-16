@@ -1,0 +1,37 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+attrs = "*"
+# colorama
+ffmpeg-python = "*"
+# more-itertools
+# numba
+# numpy
+openai = "*"
+# openai-whisper
+pyperclip = "*"
+requests = "*"
+sounddevice = "*"
+numpy = "*"
+webrtcvad = "*"
+python-dotenv = "*"
+
+[dev-packages]
+black = "*"
+"prospector[with_everything]" = ">1.10"
+ipython = "*"
+notebook = "*"
+typing_extensions = "*"
+pyflakes = "*"
+pycodestyle = "*"
+mypy-extensions = "*"
+flake8 = "*"
+mypy = "*"
+pylint = "*"
+pydantic = "*"
+
+[requires]
+python_version = "3.11"
