@@ -2,13 +2,17 @@ import os
 import tempfile
 import traceback
 import wave
+import json
 from typing import Any, Callable, Optional
 
+from deepgram import Deepgram
 import numpy as np
 import openai
 import sounddevice as sd
 import webrtcvad
 from dotenv import load_dotenv
+
+DEBUG = False
 
 if load_dotenv():
     openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -87,8 +91,20 @@ def record_and_transcribe(
             return ""
 
         audio_data = np.array(recording, dtype=np.int16)
+        audio_data_size = audio_data.size
+        total_samples = audio_data_size // 2
+        recording_duration_seconds = total_samples / sample_rate
         if config["print_to_terminal"]:
-            print("Recording finished. Size:", audio_data.size)
+            print(
+                f"Recording finished. Size: {audio_data_size} bytes. Duration: {recording_duration_seconds} seconds"
+            )
+
+        if recording_duration_seconds / 60 > 15:
+            print(
+                f"Recording too long. Duration: {recording_duration_seconds / 60} mins is greater than 15 minutes"
+            )
+            status_queue.put(("error", "Recording too long"))
+            return ""
 
         # Save the recorded audio as a temporary WAV file on disk
         with tempfile.NamedTemporaryFile(
@@ -104,19 +120,41 @@ def record_and_transcribe(
         if config["print_to_terminal"]:
             print("Transcribing audio file...")
 
-        # If configured, transcribe the temporary audio file using the OpenAI API
-        # if config["use_api"]:
-        api_options = config["api_options"]
-        prompt = prompt_override or api_options["initial_prompt"]
-        with open(temp_audio_file.name, "rb") as audio_file:
-            response: Any = openai.Audio.transcribe(
-                model=api_options["model"],
-                file=audio_file,
-                language=api_options["language"],
-                prompt=prompt,
-                temperature=api_options["temperature"],
-            )
+        # # If configured, transcribe the temporary audio file using the OpenAI API
+        # # if config["use_api"]:
+        # api_options = config["api_options"]
+        # prompt = prompt_override or api_options["initial_prompt"]
+        # with open(temp_audio_file.name, "rb") as audio_file:
+        #     response: Any = openai.Audio.transcribe(
+        #         model=api_options["model"],
+        #         file=audio_file,
+        #         language=api_options["language"],
+        #         prompt=prompt,
+        #         temperature=api_options["temperature"],
+        #     )
 
+        if DEBUG:
+            print("Transcribing with Deepgram...")
+        # Transcribe with Deepgram
+        api_key = os.getenv("DEEPGRAM_API_KEY")
+        if not api_key:
+            raise Exception("Deepgram API key not found")
+
+        print(api_key)
+        deepgram = Deepgram(api_key)
+        deepgram_options = {
+            "tier": "nova",
+            "punctuate": True,
+            "smart_format": True,
+            "summarize": "false",
+            "measurements": True,
+            # "dictation": True,
+        }
+        with open(temp_audio_file.name, "rb") as audio:
+            source = {"buffer": audio, "mimetype": "audio/wav"}
+            response = deepgram.transcription.sync_prerecorded(source, deepgram_options)
+            if DEBUG:
+                print(json.dumps(response, indent=4))
         # Remove the temporary audio file
         os.remove(temp_audio_file.name)
 
@@ -124,7 +162,12 @@ def record_and_transcribe(
             status_queue.put(("cancel", ""))
             return ""
 
-        result: str = response.get("text", "")
+        try:
+            result = response["results"]["channels"][0]["alternatives"][0]["transcript"]
+        except Exception as exc:
+            print("Error parsing response from Deepgram. Error:", exc)
+            return ""
+
         if config["print_to_terminal"]:
             print("Transcription:", result)
 

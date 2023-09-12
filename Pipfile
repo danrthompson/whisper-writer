@@ -18,6 +18,7 @@ sounddevice = "*"
 numpy = "*"
 webrtcvad = "*"
 python-dotenv = "*"
+deepgram-sdk = "*"
 
 [dev-packages]
 black = "*"

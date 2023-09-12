@@ -3,8 +3,8 @@ from whisper_app import WhisperApp
 import time
 import os
 
-COMMAND_FILE = "/Users/danthompson/Code/Tools/whisper-writer/command.txt"
-RESULT_FILE = "/Users/danthompson/Code/Tools/whisper-writer/result.txt"
+COMMAND_FILE = "/Users/danthompson/Code/Tools/cloned/whisper-writer/command.txt"
+RESULT_FILE = "/Users/danthompson/Code/Tools/cloned/whisper-writer/result.txt"
 
 
 def set_results(result):
