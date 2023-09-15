@@ -269,7 +269,9 @@ def record_audio(
     return audio_data
 
 
-def check_audio_duration(audio_data: NDArray[np.int16], status_queue) -> bool:
+def check_audio_duration(
+    audio_data: NDArray[np.int16], status_queue
+) -> tuple[bool, float]:
     audio_data_size = audio_data.size
     total_samples = audio_data_size // 2
     recording_duration_seconds = total_samples / SAMPLE_RATE
@@ -285,9 +287,9 @@ def check_audio_duration(audio_data: NDArray[np.int16], status_queue) -> bool:
             recording_duration_seconds / 60,
         )
         status_queue.put(("error", "Recording too long"))
-        return False
+        return (False, recording_duration_seconds)
 
-    return True
+    return (True, recording_duration_seconds)
 
 
 def save_audio_to_temp_file(audio_data: NDArray[np.int16]) -> str:
@@ -350,12 +352,15 @@ def record_and_transcribe(
 
     # Record audio
     audio_data = record_audio(status_queue, cancel_flag, stop_flag, config)
-    if not audio_data:
+    if audio_data is None:
         logger.warning("No audio data recorded. Possible error")
         return ""
 
     # returns false if it took too long
-    if not check_audio_duration(audio_data, status_queue):
+    acceptable_duration, recording_duration = check_audio_duration(
+        audio_data, status_queue
+    )
+    if not acceptable_duration:
         return ""
 
     audio_file_name = save_audio_to_temp_file(audio_data)
@@ -373,7 +378,8 @@ def record_and_transcribe(
         return ""
 
     logger.info(
-        "Transcription finished. Duration in seconds: %.1f. Model: %s Result: %s",
+        "Transcription finished. Recording duration: %.1f. Transcription duration: %.1f. Model: %s Result: %s",
+        recording_duration,
         duration,
         model_type.name,
         result,
