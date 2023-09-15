@@ -19,6 +19,7 @@ numpy = "*"
 webrtcvad = "*"
 python-dotenv = "*"
 deepgram-sdk = "*"
+assemblyai = "*"
 
 [dev-packages]
 black = "*"
