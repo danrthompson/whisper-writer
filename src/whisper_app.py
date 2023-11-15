@@ -92,6 +92,10 @@ class WhisperApp:
             except Empty:
                 break
 
+    def update_model(self, model_name):
+        self.config["model"] = model_name
+        print(f"Updated model to: {model_name}")
+
     def update_configs(self):
         self.config = load_config_with_defaults()
         print("Updated configs")
@@ -116,26 +120,14 @@ class WhisperApp:
 
 
 def load_config_with_defaults():
-    default_config = {
-        "use_api": True,
-        "wait_for_stop_function": True,
-        "api_options": {
-            "model": "whisper-1",
-            "language": None,
-            "temperature": 0.0,
-            "initial_prompt": None,
-        },
-        "silence_duration": 900,
-        "remove_trailing_period": True,
-        "add_trailing_space": False,
-        "remove_capitalization": False,
-        "print_to_terminal": False,
-    }
-
+    config = {}
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
     if os.path.isfile(config_path):
         with open(config_path, "r") as config_file:
             user_config = json.load(config_file)
-            default_config |= user_config
+            config = user_config
 
-    return default_config
+    if not config:
+        raise RuntimeError("No config found")
+
+    return config

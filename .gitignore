@@ -4,3 +4,5 @@
 nohup.out
 **/__pycache__
 .dmypy.json
+.venv
+

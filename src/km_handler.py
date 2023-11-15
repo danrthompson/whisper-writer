@@ -1,3 +1,4 @@
+from pyexpat import model
 from whisper_app import WhisperApp
 
 import time
@@ -33,6 +34,14 @@ while True:
             set_results("done")
         elif command == "update configs":
             app.update_configs()
+            set_results("done")
+        elif command.startswith("update model"):
+            split_command = command.split("|", 1)
+            if len(split_command) == 1:
+                print("ERROR: No valid model name provided. Taking no action")
+                continue
+            model_name = split_command[1].strip()
+            app.update_model(model_name)
             set_results("done")
         elif command.startswith("update prompt"):
             split_command = command.split("|", 1)

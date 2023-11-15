@@ -41,10 +41,10 @@ logger = logging.getLogger(__name__)
 
 
 class ModelType(Enum):
-    NOVA = auto()
-    OPENAI_WHISPER = auto()
-    DEEPGRAM_WHISPER = auto()
-    ASSEMBLYAI = auto()
+    NOVA = "nova"
+    OPENAI_WHISPER = "openai_whisper"
+    DEEPGRAM_WHISPER = "deepgram_whisper"
+    ASSEMBLYAI = "assemblyai"
 
 
 class AbstractTranscriptionModel(ABC):
@@ -305,11 +305,12 @@ def save_audio_to_temp_file(audio_data: NDArray[np.int16]) -> str:
 
 
 def get_model_type(config):
-    model_type = config.get("model")
-    if model_type:
+    model_type: Optional[ModelType] = None
+    model_str: str = config.get("model")
+    if model_str:
         try:
-            model_type = ModelType[model_type]
-        except KeyError:
+            model_type = ModelType(model_str)
+        except ValueError:
             logger.exception("Invalid model type: %s", config.get("model"))
 
     if not model_type:
