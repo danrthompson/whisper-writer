@@ -85,6 +85,7 @@ class OpenAIWhisperTranscription(AbstractTranscriptionModel):
         logger.info("Transcribing with OpenAI...")
         # If configured, transcribe the temporary audio file using the OpenAI API
         # if config["use_api"]:
+        logger.info(config)
         api_options = config["api_options"]
         prompt = api_options.get("prompt_override", "") or api_options.get(
             "initial_prompt", ""
@@ -326,7 +327,7 @@ def get_transcription(
     status_queue.put(("transcribing", "Transcribing..."))
 
     result = AbstractTranscriptionModel.transcribe_for_model(
-        model_type, audio_file_name
+        model_type, audio_file_name, config=config
     )
 
     # Remove the temporary audio file
