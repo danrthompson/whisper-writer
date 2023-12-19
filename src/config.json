@@ -1,8 +1,9 @@
 {
-	"model_u1": "nova",
+	"model_u1": "openai_whisper",
 	"model_u2": "assemblyai",
 	"model_u3": "deepgram_whisper",
-	"model": "openai_whisper",
+	"model": "nova",
+	"multi_model": true,
 	"use_api": true,
 	"wait_for_stop_function": true,
 	"api_options": {

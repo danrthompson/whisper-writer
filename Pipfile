@@ -20,6 +20,8 @@ webrtcvad = "*"
 python-dotenv = "*"
 deepgram-sdk = "*"
 assemblyai = "*"
+unidiff = "*"
+colorama = "*"
 
 [dev-packages]
 black = "*"

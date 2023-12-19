@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import random
 import tempfile
 import wave
 from abc import ABC, abstractmethod
@@ -9,8 +10,10 @@ from time import time
 from typing import Any, Callable, Optional, Type
 
 import assemblyai as aai
+from colorama import Fore, Style, init
+import difflib
 import numpy as np
-import openai
+from openai import OpenAI
 import sounddevice as sd
 import webrtcvad
 from assemblyai import LanguageCode, TranscriptionConfig
@@ -18,6 +21,9 @@ from deepgram import Deepgram
 from deepgram.transcription import PrerecordedOptions
 from deepgram._types import BufferSource
 from numpy.typing import NDArray
+
+
+init(autoreset=True)
 
 # Constants and Environment Variables
 DEBUG = False
@@ -27,6 +33,7 @@ ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY", "")
 
 SAMPLE_RATE = 16000
 
+
 if not (OPENAI_API_KEY and DEEPGRAM_API_KEY and ASSEMBLYAI_API_KEY):
     missing_keys = [
         key
@@ -34,6 +41,60 @@ if not (OPENAI_API_KEY and DEEPGRAM_API_KEY and ASSEMBLYAI_API_KEY):
         if not os.getenv(key)
     ]
     raise RuntimeError(f"API keys not found. Missing keys: {', '.join(missing_keys)}")
+
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+
+def colorize_word_diff(a, b):
+    sequence_matcher = difflib.SequenceMatcher(None, a, b)
+    output = []
+    for opcode in sequence_matcher.get_opcodes():
+        tag, i1, i2, j1, j2 = opcode
+        if tag == "equal":
+            output.append("".join(a[i1:i2]))
+        elif tag == "insert":
+            output.append(Fore.GREEN + "".join(b[j1:j2]) + Style.RESET_ALL)
+        elif tag == "delete":
+            output.append(Fore.RED + "".join(a[i1:i2]) + Style.RESET_ALL)
+        elif tag == "replace":
+            output.append(Fore.RED + "".join(a[i1:i2]) + Style.RESET_ALL)
+            output.append(Fore.GREEN + "".join(b[j1:j2]) + Style.RESET_ALL)
+    return "".join(output)
+
+
+def get_diff(transcription1, transcription2):
+    lines1 = transcription1.splitlines()
+    lines2 = transcription2.splitlines()
+
+    # Generate unified diff
+    diff = list(
+        difflib.unified_diff(
+            lines1,
+            lines2,
+            fromfile="transcription1",
+            tofile="transcription2",
+            lineterm="",
+        )
+    )
+
+    # Find and colorize changed lines
+    for line in diff:
+        if line.startswith("---") or line.startswith("+++"):
+            # Skip diff metadata lines
+            continue
+        if line.startswith("-"):
+            removed_line = line[1:]
+        elif line.startswith("+"):
+            added_line = line[1:]
+            print(colorize_word_diff(removed_line, added_line))
+        elif line.startswith(" "):
+            # Print unchanged lines without color
+            print(line)
+        elif line.startswith("@"):
+            # Print diff position headers with color
+            print(Fore.CYAN + line + Style.RESET_ALL)
+
 
 # Initialize logger
 logging.basicConfig(level=logging.DEBUG)
@@ -78,9 +139,6 @@ class AbstractTranscriptionModel(ABC):
 
 @AbstractTranscriptionModel.register_model(ModelType.OPENAI_WHISPER)
 class OpenAIWhisperTranscription(AbstractTranscriptionModel):
-    def __init__(self):
-        openai.api_key = OPENAI_API_KEY
-
     def transcribe(self, audio_file: str, config: dict) -> str:
         logger.info("Transcribing with OpenAI...")
         # If configured, transcribe the temporary audio file using the OpenAI API
@@ -92,7 +150,7 @@ class OpenAIWhisperTranscription(AbstractTranscriptionModel):
         )
 
         with open(audio_file, "rb") as f:
-            response: Any = openai.Audio.transcribe(
+            response: Any = client.audio.transcriptions.create(
                 model=api_options["model"],
                 file=f,
                 language=api_options["language"],
@@ -100,7 +158,7 @@ class OpenAIWhisperTranscription(AbstractTranscriptionModel):
                 temperature=api_options["temperature"],
             )
 
-        result: str = response.get("text", "")
+        result: str = response.text
 
         return result
 
@@ -182,8 +240,8 @@ class NovaTranscription(DeepgramTranscriber):
     @property
     def deepgram_options(self) -> PrerecordedOptions:
         return PrerecordedOptions(
-            model="general",
-            tier="nova",
+            model="nova-2",
+            # tier="nova-2",
             language="en-US",
             punctuate=True,
             smart_format=True,
@@ -322,7 +380,7 @@ def get_model_type(config):
 
 
 def get_transcription(
-    model_type: ModelType, audio_file_name: str, status_queue, config: dict
+    model_type: ModelType, audio_file_name: str, status_queue, config: dict, remove=True
 ) -> str:
     status_queue.put(("transcribing", "Transcribing..."))
 
@@ -331,9 +389,81 @@ def get_transcription(
     )
 
     # Remove the temporary audio file
-    os.remove(audio_file_name)
+    if remove:
+        os.remove(audio_file_name)
 
     return result
+
+
+def get_multi_model_transcription(
+    audio_file_name: str,
+    status_queue,
+    config: dict,
+    cancel_flag: Callable[[], bool],
+    recording_duration: float,
+):
+    nova_model = ModelType.NOVA
+    whisper_model = ModelType.OPENAI_WHISPER
+
+    nova_transcription = get_single_model_transcription(
+        nova_model,
+        audio_file_name,
+        status_queue,
+        config,
+        cancel_flag,
+        recording_duration,
+        remove=False,
+    )
+    whisper_transcription = get_single_model_transcription(
+        whisper_model,
+        audio_file_name,
+        status_queue,
+        config,
+        cancel_flag,
+        recording_duration,
+    )
+    get_diff(nova_transcription, whisper_transcription)
+
+    if random.choice([True, False]):
+        print("Using Nova")
+        return nova_transcription
+    else:
+        print("Using Whisper")
+        return whisper_transcription
+
+
+def get_single_model_transcription(
+    model_type: ModelType,
+    audio_file_name: str,
+    status_queue,
+    config: dict,
+    cancel_flag: Callable[[], bool],
+    recording_duration: float,
+    remove=True,
+) -> str:
+    start_time = time()
+    result = get_transcription(
+        model_type, audio_file_name, status_queue, config, remove=remove
+    )
+    end_time = time()
+
+    duration = end_time - start_time
+
+    if cancel_flag():
+        status_queue.put(("cancel", ""))
+        return ""
+
+    logger.info(
+        "Transcription finished. Recording duration: %.1f. Transcription duration: %.1f. Model: %s Result: %s",
+        recording_duration,
+        duration,
+        model_type.name,
+        result,
+    )
+
+    status_queue.put(("idle", ""))
+
+    return process_transcription(result.strip(), config) if result else ""
 
 
 def record_and_transcribe(
@@ -367,26 +497,20 @@ def record_and_transcribe(
 
     audio_file_name = save_audio_to_temp_file(audio_data)
 
+    if config["multi_model"]:
+        return get_multi_model_transcription(
+            audio_file_name,
+            status_queue,
+            config,
+            cancel_flag=cancel_flag,
+            recording_duration=recording_duration,
+        )
     model_type = get_model_type(config)
-
-    start_time = time()
-    result = get_transcription(model_type, audio_file_name, status_queue, config)
-    end_time = time()
-
-    duration = end_time - start_time
-
-    if cancel_flag():
-        status_queue.put(("cancel", ""))
-        return ""
-
-    logger.info(
-        "Transcription finished. Recording duration: %.1f. Transcription duration: %.1f. Model: %s Result: %s",
-        recording_duration,
-        duration,
-        model_type.name,
-        result,
+    return get_single_model_transcription(
+        model_type,
+        audio_file_name,
+        status_queue,
+        config,
+        cancel_flag=cancel_flag,
+        recording_duration=recording_duration,
     )
-
-    status_queue.put(("idle", ""))
-
-    return process_transcription(result.strip(), config) if result else ""
