@@ -23,7 +23,22 @@ from deepgram._types import BufferSource
 from numpy.typing import NDArray
 
 
-init(autoreset=True)
+init(wrap=False)
+
+# Initialize the base logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create a separate logger for diff outputs
+diff_logger = logging.getLogger("diff_logger")
+diff_logger.setLevel(logging.INFO)
+
+# Create a file handler for diff logs, which will write to color_diffs.out
+diff_handler = logging.FileHandler(
+    "/Users/danthompson/Code/Tools/cloned/whisper-writer/color_diffs.out"
+)
+diff_logger.addHandler(diff_handler)
+
 
 # Constants and Environment Variables
 DEBUG = False
@@ -64,14 +79,19 @@ def colorize_word_diff(a, b):
 
 
 def get_diff(transcription1, transcription2):
-    lines1 = transcription1.splitlines()
-    lines2 = transcription2.splitlines()
+    # Log the first transcription
+    diff_logger.info("Nova:\n" + transcription1)
+
+    # Log the second transcription
+    diff_logger.info("Whisper:\n" + transcription2)
+
+    diff_logger.info("Diff:")
 
     # Generate unified diff
     diff = list(
         difflib.unified_diff(
-            lines1,
-            lines2,
+            transcription1.splitlines(),
+            transcription2.splitlines(),
             fromfile="transcription1",
             tofile="transcription2",
             lineterm="",
@@ -87,18 +107,15 @@ def get_diff(transcription1, transcription2):
             removed_line = line[1:]
         elif line.startswith("+"):
             added_line = line[1:]
-            print(colorize_word_diff(removed_line, added_line))
+            diff_logger.info(colorize_word_diff(removed_line, added_line))
         elif line.startswith(" "):
             # Print unchanged lines without color
-            print(line)
+            diff_logger.info(line)
         elif line.startswith("@"):
             # Print diff position headers with color
-            print(Fore.CYAN + line + Style.RESET_ALL)
+            diff_logger.info(Fore.CYAN + line + Style.RESET_ALL)
 
-
-# Initialize logger
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+    diff_logger.info("Done\n\n-----\n\n")
 
 
 class ModelType(Enum):
